@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>J.A.R.V.I.S. — Prototype 02</title>
+<style>
+:root{--cyan:#48d9ff;--blue:#087dff;--bg:#030914;--panel:rgba(8,28,54,.7)}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at center,#09254b 0%,#030914 65%);color:#d8f7ff;font-family:Arial,sans-serif;min-height:100vh;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{letter-spacing:5px;font-size:1.2rem;color:var(--cyan)}.clock{font-size:1.3rem}
+main{max-width:950px;margin:20px auto}.panel{border:1px solid #1c8ec5;border-radius:14px;background:var(--panel);padding:16px;box-shadow:0 0 20px #008cff22;margin:12px 0}
+.core-wrap{display:flex;justify-content:center;align-items:center;min-height:300px}.core{width:210px;height:210px;border-radius:50%;border:4px solid #48d9ff;box-shadow:0 0 24px #008cff, inset 0 0 24px #008cff;display:grid;place-items:center;position:relative;animation:pulse 3s infinite}.core:before,.core:after{content:"";position:absolute;border-radius:50%;border:1px solid #5ce5ff;width:85%;height:85%;animation:spin 10s linear infinite}.core:after{width:65%;height:65%;animation-direction:reverse;animation-duration:7s}.core span{font-size:1.5rem;letter-spacing:3px;color:white;text-shadow:0 0 10px #4adfff}
+@keyframes pulse{50%{box-shadow:0 0 45px #008cff,inset 0 0 35px #008cff}}@keyframes spin{to{transform:rotate(360deg)}}
+button{border:1px solid var(--cyan);background:#062647;color:#dffaff;padding:12px 15px;border-radius:10px;font-size:1rem;margin:5px;cursor:pointer}button:active{background:#0d558a}button.primary{background:#087dff;color:white}
+.row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.status{color:var(--cyan);min-height:1.6em}small{color:#91b6c9}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.item{padding:12px;border:1px solid #164d78;border-radius:10px;background:#05172a}
+textarea{width:100%;min-height:70px;background:#031120;border:1px solid #2678a5;color:#e1f8ff;border-radius:8px;padding:10px}ul{padding-left:20px}
+</style>
+</head>
+<body>
+<header><h1>J.A.R.V.I.S.</h1><div class="clock" id="clock">--:--:--</div></header>
+<main>
+<section class="panel core-wrap"><div class="core"><span>J.A.R.V.I.S.</span></div></section>
+<section class="panel">
+<h2>Diagnostic vocal — prototype 02</h2>
+<p>Cette version vérifie si le navigateur expose la reconnaissance vocale. La voix et la reconnaissance peuvent dépendre de Chrome et des services Android.</p>
+<div class="row">
+<button class="primary" id="test">Tester la reconnaissance vocale</button>
+<button id="stop">Arrêter</button>
+<button id="speak">Tester la voix de JARVIS</button>
+</div>
+<p class="status" id="status">Diagnostic en attente.</p>
+<label for="transcript">Texte reconnu :</label>
+<textarea id="transcript" placeholder="Le texte reconnu apparaîtra ici…"></textarea>
+</section>
+<section class="panel grid">
+<div class="item"><strong>Reconnaissance vocale</strong><p id="recognition">À vérifier</p></div>
+<div class="item"><strong>Voix du navigateur</strong><p id="speech">À vérifier</p></div>
+<div class="item"><strong>Langue</strong><p>Français (fr-FR)</p></div>
+</section>
+<section class="panel"><h3>Commandes de test</h3><ul><li>« Bonjour JARVIS »</li><li>« Quelle heure est-il ? »</li><li>« Fais un test »</li></ul><p id="response" class="status">En attente d'une commande.</p></section>
+<section class="panel"><h3>État du prototype</h3><small>Prototype local : aucun service d'IA, météo ou calendrier n'est connecté à ce stade. Le diagnostic vocal n'envoie pas de données à notre propre serveur.</small></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function clock(){const d=new Date();$("clock").textContent=d.toLocaleTimeString("fr-FR");}
+clock();setInterval(clock,1000);
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+$("recognition").textContent=SR?"API de reconnaissance détectée":"API de reconnaissance non détectée dans ce navigateur";
+$("speech").textContent=window.speechSynthesis?"Synthèse vocale disponible":"Synthèse vocale non détectée";
+let rec=null;
+$("test").onclick=()=>{
+ $("transcript").value="";
+ if(!SR){$("status").textContent="Échec : SpeechRecognition / webkitSpeechRecognition n'est pas exposé par ce navigateur. Essayez une autre méthode ou un navigateur compatible.";return;}
+ try{
+  rec=new SR();rec.lang="fr-FR";rec.interimResults=true;rec.continuous=false;
+  $("status").textContent="Demande d'accès au micro… Parlez après le signal ou dès que l'écoute commence.";
+  rec.onstart=()=>{$("status").textContent="Écoute en cours… Parlez maintenant.";};
+  rec.onresult=e=>{let t="";for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript; $("transcript").value=t;if(e.results[e.results.length-1].isFinal){$("status").textContent="Reconnaissance réussie.";interpret(t);}};
+  rec.onerror=e=>{$("status").textContent="Erreur de reconnaissance : "+e.error+" (message technique du navigateur).";};
+  rec.onend=()=>{if($("status").textContent.includes("Écoute en cours"))$("status").textContent="Écoute terminée. Si aucun texte n'est apparu, retentez ou vérifiez le support du navigateur.";};
+  rec.start();
+ }catch(e){$("status").textContent="Impossible de démarrer : "+(e.message||e);}
+};
+$("stop").onclick=()=>{if(rec){try{rec.stop();}catch(e){}}$("status").textContent="Test arrêté.";};
+function interpret(t){let s=t.toLowerCase();if(s.includes("heure"))$("response").textContent="Il est "+new Date().toLocaleTimeString("fr-FR")+". (Réponse locale de démonstration)";else if(s.includes("bonjour"))$("response").textContent="Bonjour. Je suis prêt pour un test. (Réponse locale de démonstration)";else $("response").textContent="Commande entendue : « "+t+" ». (Démo, sans IA connectée)";}
+$("speak").onclick=()=>{if(!window.speechSynthesis){$("status").textContent="Synthèse vocale non disponible dans ce navigateur.";return;}window.speechSynthesis.cancel();let u=new SpeechSynthesisUtterance("Bonjour. Test de la voix de JARVIS.");u.lang="fr-FR";u.rate=.92;window.speechSynthesis.speak(u);$("status").textContent="Test de synthèse vocale lancé.";};
+</script>
+</body>
+</html>
